@@ -31,15 +31,6 @@ st.markdown("""
         color: #94a3b8;
         text-align: center;
     }
-    /* Custom card styling */
-    .card {
-        background-color: rgba(30, 41, 59, 0.8);
-        border-radius: 0.75rem;
-        padding: 1.5rem;
-        border: 1px solid #334155;
-        margin-bottom: 1rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    }
     /* Metric styling */
     .stMetric {
         background-color: rgba(30, 41, 59, 0.8);
@@ -178,40 +169,36 @@ with left_col:
     tab1, tab2 = st.tabs(["Market & Option", "Model & Analysis"])
 
     with tab1:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("📈 Market Parameters")
-        c1, c2 = st.columns([3, 1])
-        with c1: st.session_state.ticker = st.text_input("Stock Ticker", st.session_state.ticker, label_visibility="collapsed").upper()
-        with c2:
-            if st.button("Fetch"):
-                if st.session_state.ticker in MOCK_STOCK_DATA:
-                    data = MOCK_STOCK_DATA[st.session_state.ticker]
-                    st.session_state.S0 = data['price']
-                    st.session_state.sigma = calculate_historical_volatility(data['history']) * 100
-                    st.toast(f"Data fetched for {st.session_state.ticker}!", icon="✅")
-                else: st.error("Ticker not found.")
-        S0 = st.number_input("Stock Price (S₀)", value=st.session_state.S0, format="%.2f")
-        sigma_pct = st.number_input("Volatility (σ %)", value=st.session_state.sigma, format="%.2f", key="sigma_input")
-        r_pct = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.subheader("📈 Market Parameters")
+            c1, c2 = st.columns([3, 1])
+            with c1: st.session_state.ticker = st.text_input("Stock Ticker", st.session_state.ticker, label_visibility="collapsed").upper()
+            with c2:
+                if st.button("Fetch"):
+                    if st.session_state.ticker in MOCK_STOCK_DATA:
+                        data = MOCK_STOCK_DATA[st.session_state.ticker]
+                        st.session_state.S0 = data['price']
+                        st.session_state.sigma = calculate_historical_volatility(data['history']) * 100
+                        st.toast(f"Data fetched for {st.session_state.ticker}!", icon="✅")
+                    else: st.error("Ticker not found.")
+            S0 = st.number_input("Stock Price (S₀)", value=st.session_state.S0, format="%.2f")
+            sigma_pct = st.number_input("Volatility (σ %)", value=st.session_state.sigma, format="%.2f", key="sigma_input")
+            r_pct = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("⚙️ Option Parameters")
-        K = st.number_input("Strike Price (K)", value=3000.00, format="%.2f")
-        days_to_expiry = st.number_input("Days to Expiry", value=30, min_value=1)
-        option_type = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.subheader("⚙️ Option Parameters")
+            K = st.number_input("Strike Price (K)", value=3000.00, format="%.2f")
+            days_to_expiry = st.number_input("Days to Expiry", value=30, min_value=1)
+            option_type = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
 
     with tab2:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("🧮 Model Parameters")
-        model = st.radio("Calculation Model", ('Binomial Tree', 'Black-Scholes'), horizontal=True)
-        steps = st.slider("Binomial Steps (N)", min_value=1, max_value=200, value=50) if model == 'Binomial Tree' else 0
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.subheader("🧮 Model Parameters")
+            model = st.radio("Calculation Model", ('Binomial Tree', 'Black-Scholes'), horizontal=True)
+            steps = st.slider("Binomial Steps (N)", min_value=1, max_value=200, value=50) if model == 'Binomial Tree' else 0
         
         if model == 'Black-Scholes':
-            with st.container():
-                st.markdown('<div class="card">', unsafe_allow_html=True)
+            with st.container(border=True):
                 st.subheader("🔍 Implied Volatility")
                 market_price = st.number_input("Enter Market Price (₹)", min_value=0.01, format="%.2f")
                 if st.button("Calculate IV"):
@@ -221,7 +208,6 @@ with left_col:
                     st.info("Volatility input has been updated.")
                     st.session_state.sigma = iv * 100
                     st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
 
 # --- CALCULATIONS ---
 T, r, sigma = days_to_expiry / 365.0, r_pct / 100.0, sigma_pct / 100.0
@@ -233,50 +219,46 @@ with right_col:
     st.metric(label=f"Calculated {option_type} Price ({model})", value=f"₹{results['option_price']:.4f}")
 
     if model == 'Binomial Tree':
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("Binomial Model Internals")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Time Step (dt)", f"{results['dt']:.5f}")
-        c2.metric("Up Factor (u)", f"{results['u']:.5f}")
-        c3.metric("Down Factor (d)", f"{results['d']:.5f}")
-        c4.metric("Probability (p)", f"{results['p']:.5f}")
-        if not (0 <= results['p'] <= 1): st.warning("Arbitrage Alert: p is outside [0, 1].")
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.subheader("Binomial Model Internals")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Time Step (dt)", f"{results['dt']:.5f}")
+            c2.metric("Up Factor (u)", f"{results['u']:.5f}")
+            c3.metric("Down Factor (d)", f"{results['d']:.5f}")
+            c4.metric("Probability (p)", f"{results['p']:.5f}")
+            if not (0 <= results['p'] <= 1): st.warning("Arbitrage Alert: p is outside [0, 1].")
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("Option Greeks")
-    greeks = results["greeks"]
-    gc1, gc2, gc3, gc4, gc5 = st.columns(5)
-    gc1.metric("Delta (Δ)", f"{greeks['Delta']:.4f}")
-    gc2.metric("Gamma (Γ)", f"{greeks['Gamma']:.4f}")
-    gc3.metric("Vega", f"{greeks['Vega']:.4f}")
-    gc4.metric("Theta (Θ)", f"{greeks['Theta']:.4f}")
-    gc5.metric("Rho (ρ)", f"{greeks['Rho']:.4f}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.subheader("Option Greeks")
+        greeks = results["greeks"]
+        gc1, gc2, gc3, gc4, gc5 = st.columns(5)
+        gc1.metric("Delta (Δ)", f"{greeks['Delta']:.4f}")
+        gc2.metric("Gamma (Γ)", f"{greeks['Gamma']:.4f}")
+        gc3.metric("Vega", f"{greeks['Vega']:.4f}")
+        gc4.metric("Theta (Θ)", f"{greeks['Theta']:.4f}")
+        gc5.metric("Rho (ρ)", f"{greeks['Rho']:.4f}")
 
     with st.expander("Show Calculation Details"):
-        st.markdown('<div class="card" style="margin-bottom: 0;">', unsafe_allow_html=True)
-        if model == 'Binomial Tree':
-            d = results['details']
-            st.markdown(f"**Delta (Δ):** `({d['price_plus_S']:.4f} - {d['price_minus_S']:.4f}) / (2 * {d['dS']:.2f})`")
-            st.markdown(f"**Gamma (Γ):** `({d['price_plus_S']:.4f} - 2*{d['base_price']:.4f} + {d['price_minus_S']:.4f}) / {d['dS']:.2f}²`")
-            st.markdown(f"**Vega:** `({d['price_plus_sigma']:.4f} - {d['base_price']:.4f}) / ({d['dSigma']} * 100)`")
-            st.markdown(f"**Theta (Θ):** `{d['price_minus_T']:.4f} - {d['base_price']:.4f}`")
-            st.markdown(f"**Rho (ρ):** `({d['price_plus_r']:.4f} - {d['base_price']:.4f}) / ({d['dR']} * 100)`")
-        else:
-            st.markdown(f"**d1:** `{results['d1']:.5f}`")
-            st.markdown(f"**d2:** `{results['d2']:.5f}`")
-            st.markdown(f"**N(d1):** `{norm.cdf(results['d1']):.5f}`")
-            st.markdown(f"**N(d2):** `{norm.cdf(results['d2']):.5f}`")
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            if model == 'Binomial Tree':
+                d = results['details']
+                st.markdown(f"**Delta (Δ):** `({d['price_plus_S']:.4f} - {d['price_minus_S']:.4f}) / (2 * {d['dS']:.2f})`")
+                st.markdown(f"**Gamma (Γ):** `({d['price_plus_S']:.4f} - 2*{d['base_price']:.4f} + {d['price_minus_S']:.4f}) / {d['dS']:.2f}²`")
+                st.markdown(f"**Vega:** `({d['price_plus_sigma']:.4f} - {d['base_price']:.4f}) / ({d['dSigma']} * 100)`")
+                st.markdown(f"**Theta (Θ):** `{d['price_minus_T']:.4f} - {d['base_price']:.4f}`")
+                st.markdown(f"**Rho (ρ):** `({d['price_plus_r']:.4f} - {d['base_price']:.4f}) / ({d['dR']} * 100)`")
+            else:
+                st.markdown(f"**d1:** `{results['d1']:.5f}`")
+                st.markdown(f"**d2:** `{results['d2']:.5f}`")
+                st.markdown(f"**N(d1):** `{norm.cdf(results['d1']):.5f}`")
+                st.markdown(f"**N(d2):** `{norm.cdf(results['d2']):.5f}`")
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("Profit/Loss Payoff Diagram")
-    start_price, end_price = K * 0.8, K * 1.2
-    stock_prices = np.linspace(start_price, end_price, 50)
-    payoff = (np.maximum(0, stock_prices - K) if option_type == 'Call' else np.maximum(0, K - stock_prices)) - results['option_price']
-    fig = go.Figure(data=go.Scatter(x=stock_prices, y=payoff, mode='lines', line=dict(color='#38bdf8')))
-    fig.update_layout(xaxis_title="Stock Price at Expiration", yaxis_title="Profit / Loss", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#94a3b8', xaxis=dict(gridcolor='#334155'), yaxis=dict(gridcolor='#334155'), height=400, margin=dict(l=20, r=20, t=40, b=20))
-    st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.subheader("Profit/Loss Payoff Diagram")
+        start_price, end_price = K * 0.8, K * 1.2
+        stock_prices = np.linspace(start_price, end_price, 50)
+        payoff = (np.maximum(0, stock_prices - K) if option_type == 'Call' else np.maximum(0, K - stock_prices)) - results['option_price']
+        fig = go.Figure(data=go.Scatter(x=stock_prices, y=payoff, mode='lines', line=dict(color='#38bdf8')))
+        fig.update_layout(xaxis_title="Stock Price at Expiration", yaxis_title="Profit / Loss", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#94a3b8', xaxis=dict(gridcolor='#334155'), yaxis=dict(gridcolor='#334155'), height=400, margin=dict(l=20, r=20, t=40, b=20))
+        st.plotly_chart(fig, use_container_width=True)
 
