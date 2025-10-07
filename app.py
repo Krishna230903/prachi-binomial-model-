@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 from scipy.stats import norm
-import pandas as pd
+import yfinance as yf
 import plotly.graph_objects as go
 
 # --- Page Configuration ---
@@ -62,28 +62,46 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- DATA SIMULATION & MAPPINGS ---
-@st.cache_data
-def generate_price_history(start_price, vol, days):
-    prices = [start_price]
-    for _ in range(1, days):
-        daily_return = (np.random.randn()) * vol / np.sqrt(252)
-        prices.append(prices[-1] * (1 + daily_return))
-    return prices
-
-MOCK_STOCK_DATA = {
-    "RELIANCE.NS": {"price": 2955.75, "history": generate_price_history(2955.75, 0.228, 252)},
-    "INFY.NS": {"price": 1510.30, "history": generate_price_history(1510.30, 0.285, 252)},
-    "TCS.NS": {"price": 3855.10, "history": generate_price_history(3855.10, 0.212, 252)},
-    "HDFCBANK.NS": {"price": 1530.90, "history": generate_price_history(1530.90, 0.251, 252)},
-}
-
+# --- LIVE DATA FETCHING & MAPPINGS ---
 COMPANY_NAMES = {
     "Reliance Industries": "RELIANCE.NS",
-    "Infosys": "INFY.NS",
     "Tata Consultancy Services": "TCS.NS",
     "HDFC Bank": "HDFCBANK.NS",
+    "Infosys": "INFY.NS",
+    "ICICI Bank": "ICICIBANK.NS",
+    "Hindustan Unilever": "HINDUNILVR.NS",
+    "State Bank of India": "SBIN.NS",
+    "Bharti Airtel": "BHARTIARTL.NS",
+    "ITC": "ITC.NS",
+    "Larsen & Toubro": "LT.NS",
+    "Bajaj Finance": "BAJFINANCE.NS",
+    "Axis Bank": "AXISBANK.NS",
+    "Kotak Mahindra Bank": "KOTAKBANK.NS",
+    "Maruti Suzuki": "MARUTI.NS",
+    "Asian Paints": "ASIANPAINT.NS",
+    "Wipro": "WIPRO.NS",
 }
+
+LOT_SIZES = {
+    "RELIANCE.NS": 250, "TCS.NS": 150, "HDFCBANK.NS": 550, "INFY.NS": 400,
+    "ICICIBANK.NS": 700, "HINDUNILVR.NS": 300, "SBIN.NS": 1500, "BHARTIARTL.NS": 950,
+    "ITC.NS": 1600, "LT.NS": 300, "BAJFINANCE.NS": 125, "AXISBANK.NS": 650,
+    "KOTAKBANK.NS": 400, "MARUTI.NS": 50, "ASIANPAINT.NS": 200, "WIPRO.NS": 1300,
+}
+
+@st.cache_data(ttl=900)  # Cache data for 15 minutes
+def get_stock_data(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y")
+        if hist.empty:
+            st.error(f"No historical data found for {ticker}. Please check the ticker symbol.")
+            return None, None
+        current_price = hist['Close'].iloc[-1]
+        return current_price, hist['Close'].tolist()
+    except Exception as e:
+        st.error(f"Failed to fetch data for {ticker}: {e}")
+        return None, None
 
 def calculate_historical_volatility(prices):
     if len(prices) < 2: return 0
@@ -94,15 +112,14 @@ def calculate_historical_volatility(prices):
 def update_stock_data():
     """Callback to update stock data when company changes."""
     ticker = COMPANY_NAMES[st.session_state.company_selector]
-    if ticker in MOCK_STOCK_DATA:
-        data = MOCK_STOCK_DATA[ticker]
-        st.session_state.S0 = data['price']
-        st.session_state.sigma = calculate_historical_volatility(data['history']) * 100
+    current_price, history = get_stock_data(ticker)
+    if current_price and history:
+        st.session_state.S0 = current_price
+        st.session_state.sigma = calculate_historical_volatility(history) * 100
         st.session_state.ticker = ticker
+        st.session_state.lot_size = LOT_SIZES.get(ticker, 1)
 
 # --- CORE CALCULATION LOGIC (Identical to previous version) ---
-
-# Binomial Model
 def binomial_price(S0, K, T, r, sigma, steps, option_type):
     if T <= 0 or sigma <= 0 or steps <= 0: return {"option_price": 0, "dt": 0, "u": 0, "d": 0, "p": 0}
     dt = T / steps
@@ -133,7 +150,6 @@ def binomial_greeks(params):
     details = {"dS": dS, "base_price": base['option_price'], "price_plus_S": p_p_S, "price_minus_S": p_m_S, "dSigma": dSigma, "price_plus_sigma": p_p_sig, "price_minus_T": p_m_T, "dR": dR, "price_plus_r": p_p_r}
     return {"greeks": {"Delta": delta, "Gamma": gamma, "Vega": vega, "Theta": theta, "Rho": rho}, "details": details, **base}
 
-# Black-Scholes Model
 def black_scholes_price(S0, K, T, r, sigma, option_type):
     if T <= 0 or sigma <= 0: return {"option_price": 0, "d1": 0, "d2": 0}
     d1 = (np.log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
@@ -172,58 +188,47 @@ def calculate_implied_volatility(market_price, S0, K, T, r, option_type):
 
 # --- UI LAYOUT ---
 st.title("Advanced Options Dashboard")
-st.markdown("<p>Multi-Model Option Pricing & Greeks Analysis</p>", unsafe_allow_html=True)
+st.markdown("<p>Live Multi-Model Option Pricing & Greeks Analysis</p>", unsafe_allow_html=True)
 
 # Initialize session state
 if 'ticker' not in st.session_state:
-    st.session_state.ticker = "RELIANCE.NS"
     st.session_state.company_selector = "Reliance Industries"
-    st.session_state.S0 = 2950.00
-    st.session_state.sigma = 22.5
+    update_stock_data() # Initial data fetch
 
 left_col, right_col = st.columns([1, 2], gap="large")
 
 with left_col:
     tab1, tab2 = st.tabs(["Market & Option", "Model & Analysis"])
-
     with tab1:
         with st.container(border=True):
             st.subheader("📈 Market Parameters")
-            
-            st.selectbox(
-                "Company",
-                options=list(COMPANY_NAMES.keys()),
-                key='company_selector',
-                on_change=update_stock_data,
-            )
-
+            st.selectbox("Company", options=list(COMPANY_NAMES.keys()), key='company_selector', on_change=update_stock_data)
             S0 = st.number_input("Stock Price (S₀)", value=st.session_state.S0, format="%.2f", key="s0_input")
             sigma_pct = st.number_input("Volatility (σ %)", value=st.session_state.sigma, format="%.2f", key="sigma_input")
             r_pct = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
-
         with st.container(border=True):
             st.subheader("⚙️ Option Parameters")
             K = st.number_input("Strike Price (K)", value=3000.00, format="%.2f")
             days_to_expiry = st.number_input("Days to Expiry", value=30, min_value=1)
+            lot_size = st.number_input("Lot Size", value=st.session_state.get('lot_size', 1), min_value=1)
             option_type = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
-
     with tab2:
         with st.container(border=True):
             st.subheader("🧮 Model Parameters")
             model = st.radio("Calculation Model", ('Binomial Tree', 'Black-Scholes'), horizontal=True)
             steps = st.slider("Binomial Steps (N)", min_value=1, max_value=200, value=50) if model == 'Binomial Tree' else 0
-        
         if model == 'Black-Scholes':
             with st.container(border=True):
                 st.subheader("🔍 Implied Volatility")
                 market_price = st.number_input("Enter Market Price (₹)", min_value=0.01, format="%.2f")
                 if st.button("Calculate IV"):
                     T = days_to_expiry / 365.0; r = r_pct / 100.0
-                    iv = calculate_implied_volatility(market_price, S0, K, T, r, option_type)
-                    st.metric("Calculated Implied Volatility", f"{iv*100:.2f}%")
-                    st.info("Volatility input has been updated.")
-                    st.session_state.sigma = iv * 100
-                    st.rerun()
+                    if market_price > 0:
+                        iv = calculate_implied_volatility(market_price, S0, K, T, r, option_type)
+                        st.metric("Calculated Implied Volatility", f"{iv*100:.2f}%")
+                        st.info("Volatility input has been updated.")
+                        st.session_state.sigma = iv * 100
+                        st.rerun()
 
 # --- CALCULATIONS ---
 T, r, sigma = days_to_expiry / 365.0, r_pct / 100.0, sigma_pct / 100.0
@@ -232,49 +237,54 @@ results = binomial_greeks(params) if model == 'Binomial Tree' else black_scholes
 
 # --- RESULTS DISPLAY ---
 with right_col:
-    st.metric(label=f"Calculated {option_type} Price ({model})", value=f"₹{results['option_price']:.4f}")
+    res_c1, res_c2 = st.columns(2)
+    with res_c1:
+        st.metric(label=f"Calculated {option_type} Price", value=f"₹{results['option_price']:.4f}")
+    with res_c2:
+        total_premium = results['option_price'] * lot_size
+        st.metric(label="Total Premium (Price × Lot Size)", value=f"₹{total_premium:,.2f}")
 
     if model == 'Binomial Tree':
         with st.container(border=True):
             st.subheader("Binomial Model Internals")
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Time Step (dt)", f"{results['dt']:.5f}")
-            c2.metric("Up Factor (u)", f"{results['u']:.5f}")
-            c3.metric("Down Factor (d)", f"{results['d']:.5f}")
-            c4.metric("Probability (p)", f"{results['p']:.5f}")
-            if not (0 <= results['p'] <= 1): st.warning("Arbitrage Alert: p is outside [0, 1].")
+            c1.metric("Time Step (dt)", f"{results.get('dt', 0):.5f}")
+            c2.metric("Up Factor (u)", f"{results.get('u', 0):.5f}")
+            c3.metric("Down Factor (d)", f"{results.get('d', 0):.5f}")
+            c4.metric("Probability (p)", f"{results.get('p', 0):.5f}")
+            if not (0 <= results.get('p', 1) <= 1): st.warning("Arbitrage Alert: p is outside [0, 1].")
 
     with st.container(border=True):
         st.subheader("Option Greeks")
         greeks = results["greeks"]
         gc1, gc2, gc3, gc4, gc5 = st.columns(5)
-        gc1.metric("Delta (Δ)", f"{greeks['Delta']:.4f}")
-        gc2.metric("Gamma (Γ)", f"{greeks['Gamma']:.4f}")
-        gc3.metric("Vega", f"{greeks['Vega']:.4f}")
-        gc4.metric("Theta (Θ)", f"{greeks['Theta']:.4f}")
-        gc5.metric("Rho (ρ)", f"{greeks['Rho']:.4f}")
+        gc1.metric("Delta (Δ)", f"{greeks.get('Delta', 0):.4f}")
+        gc2.metric("Gamma (Γ)", f"{greeks.get('Gamma', 0):.4f}")
+        gc3.metric("Vega", f"{greeks.get('Vega', 0):.4f}")
+        gc4.metric("Theta (Θ)", f"{greeks.get('Theta', 0):.4f}")
+        gc5.metric("Rho (ρ)", f"{greeks.get('Rho', 0):.4f}")
 
     with st.expander("Show Calculation Details"):
         with st.container(border=True):
             if model == 'Binomial Tree':
-                d = results['details']
-                st.markdown(f"**Delta (Δ):** `({d['price_plus_S']:.4f} - {d['price_minus_S']:.4f}) / (2 * {d['dS']:.2f})`")
-                st.markdown(f"**Gamma (Γ):** `({d['price_plus_S']:.4f} - 2*{d['base_price']:.4f} + {d['price_minus_S']:.4f}) / {d['dS']:.2f}²`")
-                st.markdown(f"**Vega:** `({d['price_plus_sigma']:.4f} - {d['base_price']:.4f}) / ({d['dSigma']} * 100)`")
-                st.markdown(f"**Theta (Θ):** `{d['price_minus_T']:.4f} - {d['base_price']:.4f}`")
-                st.markdown(f"**Rho (ρ):** `({d['price_plus_r']:.4f} - {d['base_price']:.4f}) / ({d['dR']} * 100)`")
+                d = results.get('details', {})
+                st.markdown(f"**Delta (Δ):** `({d.get('price_plus_S', 0):.4f} - {d.get('price_minus_S', 0):.4f}) / (2 * {d.get('dS', 0):.2f})`")
+                st.markdown(f"**Gamma (Γ):** `({d.get('price_plus_S', 0):.4f} - 2*{d.get('base_price', 0):.4f} + {d.get('price_minus_S', 0):.4f}) / {d.get('dS', 0):.2f}²`")
+                st.markdown(f"**Vega:** `({d.get('price_plus_sigma', 0):.4f} - {d.get('base_price', 0):.4f}) / ({d.get('dSigma', 0)} * 100)`")
+                st.markdown(f"**Theta (Θ):** `{d.get('price_minus_T', 0):.4f} - {d.get('base_price', 0):.4f}`")
+                st.markdown(f"**Rho (ρ):** `({d.get('price_plus_r', 0):.4f} - {d.get('base_price', 0):.4f}) / ({d.get('dR', 0)} * 100)`")
             else:
-                st.markdown(f"**d1:** `{results['d1']:.5f}`")
-                st.markdown(f"**d2:** `{results['d2']:.5f}`")
-                st.markdown(f"**N(d1):** `{norm.cdf(results['d1']):.5f}`")
-                st.markdown(f"**N(d2):** `{norm.cdf(results['d2']):.5f}`")
+                st.markdown(f"**d1:** `{results.get('d1', 0):.5f}`")
+                st.markdown(f"**d2:** `{results.get('d2', 0):.5f}`")
+                st.markdown(f"**N(d1):** `{norm.cdf(results.get('d1', 0)):.5f}`")
+                st.markdown(f"**N(d2):** `{norm.cdf(results.get('d2', 0)):.5f}`")
 
     with st.container(border=True):
         st.subheader("Profit/Loss Payoff Diagram")
         start_price, end_price = K * 0.8, K * 1.2
         stock_prices = np.linspace(start_price, end_price, 50)
-        payoff = (np.maximum(0, stock_prices - K) if option_type == 'Call' else np.maximum(0, K - stock_prices)) - results['option_price']
+        payoff = ((np.maximum(0, stock_prices - K) if option_type == 'Call' else np.maximum(0, K - stock_prices)) - results['option_price']) * lot_size
         fig = go.Figure(data=go.Scatter(x=stock_prices, y=payoff, mode='lines', line=dict(color='#38bdf8')))
-        fig.update_layout(xaxis_title="Stock Price at Expiration", yaxis_title="Profit / Loss", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#94a3b8', xaxis=dict(gridcolor='#334155'), yaxis=dict(gridcolor='#334155'), height=400, margin=dict(l=20, r=20, t=40, b=20))
+        fig.update_layout(xaxis_title="Stock Price at Expiration", yaxis_title="Profit / Loss for Lot", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#94a3b8', xaxis=dict(gridcolor='#334155'), yaxis=dict(gridcolor='#334155'), height=400, margin=dict(l=20, r=20, t=40, b=20))
         st.plotly_chart(fig, use_container_width=True)
 
