@@ -222,8 +222,10 @@ def update_stock_data():
     ticker = COMPANY_NAMES[st.session_state.company_selector]
     current_price, history = get_stock_data(ticker)
     if current_price is not None and history is not None:
-        # Update session state using the widget keys for proper state management
+        # Round the current price to the nearest 50 for a sensible default strike
+        rounded_price = round(float(current_price) / 50) * 50
         st.session_state.s0_input = float(current_price)
+        st.session_state.k_input = float(rounded_price)  # Set default strike price
         st.session_state.sigma_input = float(calculate_historical_volatility(history) * 100)
         st.session_state.ticker = ticker
         st.session_state.lot_size_input = LOT_SIZES.get(ticker, 1)
@@ -318,7 +320,7 @@ with left_col:
             r_pct_val = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
         with st.container(border=True):
             st.subheader("⚙️ Option Parameters")
-            K_val = st.number_input("Strike Price (K)", value=st.session_state.get('s0_input', 3000.0), format="%.2f")
+            st.number_input("Strike Price (K)", format="%.2f", key="k_input")
             days_to_expiry_val = st.number_input("Days to Expiry", value=30, min_value=1)
             st.number_input("Lot Size", min_value=1, key='lot_size_input')
             option_type_val = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
@@ -335,8 +337,9 @@ with left_col:
                     T_iv = days_to_expiry_val / 365.0
                     r_iv = r_pct_val / 100.0
                     S0_iv = st.session_state.s0_input
+                    K_iv = st.session_state.k_input
                     if market_price_val > 0:
-                        iv = calculate_implied_volatility(market_price_val, S0_iv, K_val, T_iv, r_iv, option_type_val)
+                        iv = calculate_implied_volatility(market_price_val, S0_iv, K_iv, T_iv, r_iv, option_type_val)
                         st.metric("Calculated Implied Volatility", f"{iv*100:.2f}%")
                         st.info("Volatility input has been updated.")
                         st.session_state.sigma_input = iv * 100
@@ -348,9 +351,9 @@ with left_col:
 S0 = st.session_state.s0_input
 sigma_pct = st.session_state.sigma_input
 lot_size = st.session_state.lot_size_input
+K = st.session_state.k_input
 
 # For user-driven widgets, use the variables assigned during their creation
-K = K_val
 days_to_expiry = days_to_expiry_val
 option_type = option_type_val
 r_pct = r_pct_val
