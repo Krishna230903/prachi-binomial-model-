@@ -113,11 +113,12 @@ def update_stock_data():
     """Callback to update stock data when company changes."""
     ticker = COMPANY_NAMES[st.session_state.company_selector]
     current_price, history = get_stock_data(ticker)
-    if current_price and history:
-        st.session_state.S0 = current_price
-        st.session_state.sigma = calculate_historical_volatility(history) * 100
+    if current_price is not None and history is not None:
+        # Update session state using the widget keys for proper state management
+        st.session_state.s0_input = current_price
+        st.session_state.sigma_input = calculate_historical_volatility(history) * 100
         st.session_state.ticker = ticker
-        st.session_state.lot_size = LOT_SIZES.get(ticker, 1)
+        st.session_state.lot_size_input = LOT_SIZES.get(ticker, 1)
 
 # --- CORE CALCULATION LOGIC (Identical to previous version) ---
 def binomial_price(S0, K, T, r, sigma, steps, option_type):
@@ -203,14 +204,15 @@ with left_col:
         with st.container(border=True):
             st.subheader("📈 Market Parameters")
             st.selectbox("Company", options=list(COMPANY_NAMES.keys()), key='company_selector', on_change=update_stock_data)
-            S0 = st.number_input("Stock Price (S₀)", value=st.session_state.S0, format="%.2f", key="s0_input")
-            sigma_pct = st.number_input("Volatility (σ %)", value=st.session_state.sigma, format="%.2f", key="sigma_input")
+            # These widgets now correctly get their values from session state via their keys
+            S0 = st.number_input("Stock Price (S₀)", format="%.2f", key="s0_input")
+            sigma_pct = st.number_input("Volatility (σ %)", format="%.2f", key="sigma_input")
             r_pct = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
         with st.container(border=True):
             st.subheader("⚙️ Option Parameters")
             K = st.number_input("Strike Price (K)", value=3000.00, format="%.2f")
             days_to_expiry = st.number_input("Days to Expiry", value=30, min_value=1)
-            lot_size = st.number_input("Lot Size", value=st.session_state.get('lot_size', 1), min_value=1)
+            lot_size = st.number_input("Lot Size", min_value=1, key='lot_size_input')
             option_type = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
     with tab2:
         with st.container(border=True):
@@ -227,7 +229,7 @@ with left_col:
                         iv = calculate_implied_volatility(market_price, S0, K, T, r, option_type)
                         st.metric("Calculated Implied Volatility", f"{iv*100:.2f}%")
                         st.info("Volatility input has been updated.")
-                        st.session_state.sigma = iv * 100
+                        st.session_state.sigma_input = iv * 100
                         st.rerun()
 
 # --- CALCULATIONS ---
