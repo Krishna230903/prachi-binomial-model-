@@ -115,14 +115,14 @@ def update_stock_data():
     current_price, history = get_stock_data(ticker)
     if current_price is not None and history is not None:
         # Update session state using the widget keys for proper state management
-        st.session_state.s0_input = current_price
-        st.session_state.sigma_input = calculate_historical_volatility(history) * 100
+        st.session_state.s0_input = float(current_price)
+        st.session_state.sigma_input = float(calculate_historical_volatility(history) * 100)
         st.session_state.ticker = ticker
         st.session_state.lot_size_input = LOT_SIZES.get(ticker, 1)
 
 # --- CORE CALCULATION LOGIC (Identical to previous version) ---
 def binomial_price(S0, K, T, r, sigma, steps, option_type):
-    if T <= 0 or sigma <= 0 or steps <= 0: return {"option_price": 0, "dt": 0, "u": 0, "d": 0, "p": 0}
+    if T <= 0 or sigma <= 0 or steps <= 0 or S0 <= 0: return {"option_price": 0, "dt": 0, "u": 0, "d": 0, "p": 0}
     dt = T / steps
     u = np.exp(sigma * np.sqrt(dt))
     d = 1 / u
@@ -152,7 +152,7 @@ def binomial_greeks(params):
     return {"greeks": {"Delta": delta, "Gamma": gamma, "Vega": vega, "Theta": theta, "Rho": rho}, "details": details, **base}
 
 def black_scholes_price(S0, K, T, r, sigma, option_type):
-    if T <= 0 or sigma <= 0: return {"option_price": 0, "d1": 0, "d2": 0}
+    if T <= 0 or sigma <= 0 or S0 <=0: return {"option_price": 0, "d1": 0, "d2": 0}
     d1 = (np.log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
     price = (S0 * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)) if option_type == 'Call' else (K * np.exp(-r * T) * norm.cdf(-d2) - S0 * norm.cdf(-d1))
@@ -160,7 +160,7 @@ def black_scholes_price(S0, K, T, r, sigma, option_type):
 
 def black_scholes_greeks(params):
     S0, K, T, r, sigma, _, option_type = params.values()
-    if T <= 0 or sigma <= 0: return {"greeks": {k: 0 for k in ["Delta", "Gamma", "Vega", "Theta", "Rho"]}, "d1": 0, "d2": 0, "option_price": 0}
+    if T <= 0 or sigma <= 0 or S0 <=0: return {"greeks": {k: 0 for k in ["Delta", "Gamma", "Vega", "Theta", "Rho"]}, "d1": 0, "d2": 0, "option_price": 0}
     res = black_scholes_price(S0, K, T, r, sigma, option_type)
     d1, pdf_d1 = res['d1'], norm.pdf(res['d1'])
     delta = norm.cdf(d1) if option_type == 'Call' else norm.cdf(d1) - 1
@@ -198,39 +198,56 @@ if 'ticker' not in st.session_state:
 
 left_col, right_col = st.columns([1, 2], gap="large")
 
+# Define UI widgets in the left column
 with left_col:
     tab1, tab2 = st.tabs(["Market & Option", "Model & Analysis"])
     with tab1:
         with st.container(border=True):
             st.subheader("📈 Market Parameters")
             st.selectbox("Company", options=list(COMPANY_NAMES.keys()), key='company_selector', on_change=update_stock_data)
-            # These widgets now correctly get their values from session state via their keys
-            S0 = st.number_input("Stock Price (S₀)", format="%.2f", key="s0_input")
-            sigma_pct = st.number_input("Volatility (σ %)", format="%.2f", key="sigma_input")
-            r_pct = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
+            st.number_input("Stock Price (S₀)", format="%.2f", key="s0_input")
+            st.number_input("Volatility (σ %)", format="%.2f", key="sigma_input")
+            r_pct_val = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
         with st.container(border=True):
             st.subheader("⚙️ Option Parameters")
-            K = st.number_input("Strike Price (K)", value=3000.00, format="%.2f")
-            days_to_expiry = st.number_input("Days to Expiry", value=30, min_value=1)
-            lot_size = st.number_input("Lot Size", min_value=1, key='lot_size_input')
-            option_type = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
+            K_val = st.number_input("Strike Price (K)", value=3000.00, format="%.2f")
+            days_to_expiry_val = st.number_input("Days to Expiry", value=30, min_value=1)
+            st.number_input("Lot Size", min_value=1, key='lot_size_input')
+            option_type_val = st.radio("Option Type", ('Call', 'Put'), horizontal=True)
     with tab2:
         with st.container(border=True):
             st.subheader("🧮 Model Parameters")
-            model = st.radio("Calculation Model", ('Binomial Tree', 'Black-Scholes'), horizontal=True)
-            steps = st.slider("Binomial Steps (N)", min_value=1, max_value=200, value=50) if model == 'Binomial Tree' else 0
-        if model == 'Black-Scholes':
+            model_val = st.radio("Calculation Model", ('Binomial Tree', 'Black-Scholes'), horizontal=True)
+            steps_val = st.slider("Binomial Steps (N)", min_value=1, max_value=200, value=50) if model_val == 'Binomial Tree' else 0
+        if model_val == 'Black-Scholes':
             with st.container(border=True):
                 st.subheader("🔍 Implied Volatility")
-                market_price = st.number_input("Enter Market Price (₹)", min_value=0.01, format="%.2f")
+                market_price_val = st.number_input("Enter Market Price (₹)", min_value=0.01, format="%.2f")
                 if st.button("Calculate IV"):
-                    T = days_to_expiry / 365.0; r = r_pct / 100.0
-                    if market_price > 0:
-                        iv = calculate_implied_volatility(market_price, S0, K, T, r, option_type)
+                    T_iv = days_to_expiry_val / 365.0
+                    r_iv = r_pct_val / 100.0
+                    S0_iv = st.session_state.s0_input
+                    if market_price_val > 0:
+                        iv = calculate_implied_volatility(market_price_val, S0_iv, K_val, T_iv, r_iv, option_type_val)
                         st.metric("Calculated Implied Volatility", f"{iv*100:.2f}%")
                         st.info("Volatility input has been updated.")
                         st.session_state.sigma_input = iv * 100
                         st.rerun()
+
+# --- GATHER INPUTS FOR CALCULATION ---
+# After widgets are drawn, read their values for the main calculation.
+# For widgets controlled by callbacks, read directly from session state for robustness.
+S0 = st.session_state.s0_input
+sigma_pct = st.session_state.sigma_input
+lot_size = st.session_state.lot_size_input
+
+# For user-driven widgets, use the variables assigned during their creation
+K = K_val
+days_to_expiry = days_to_expiry_val
+option_type = option_type_val
+r_pct = r_pct_val
+model = model_val
+steps = steps_val
 
 # --- CALCULATIONS ---
 T, r, sigma = days_to_expiry / 365.0, r_pct / 100.0, sigma_pct / 100.0
