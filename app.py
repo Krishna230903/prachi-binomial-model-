@@ -398,11 +398,12 @@ with right_col:
         with st.container(border=True):
             if model == 'Binomial Tree':
                 d = results.get('details', {})
-                st.markdown(f"**Delta (Δ):** `({d.get('price_plus_S', 0):.4f} - {d.get('price_minus_S', 0):.4f}) / (2 * {d.get('dS', 0):.2f})`")
-                st.markdown(f"**Gamma (Γ):** `({d.get('price_plus_S', 0):.4f} - 2*{d.get('base_price', 0):.4f} + {d.get('price_minus_S', 0):.4f}) / {d.get('dS', 0):.2f}²`")
-                st.markdown(f"**Vega:** `({d.get('price_plus_sigma', 0):.4f} - {d.get('base_price', 0):.4f}) / ({d.get('dSigma', 0)} * 100)`")
-                st.markdown(f"**Theta (Θ):** `{d.get('price_minus_T', 0):.4f} - {d.get('base_price', 0):.4f}`")
-                st.markdown(f"**Rho (ρ):** `({d.get('price_plus_r', 0):.4f} - {d.get('base_price', 0):.4f}) / ({d.get('dR', 0)} * 100)`")
+                greeks = results.get('greeks', {})
+                st.markdown(f"**Delta (Δ):** `({d.get('price_plus_S', 0):.4f} - {d.get('price_minus_S', 0):.4f}) / (2 * {d.get('dS', 0):.2f}) = {greeks.get('Delta', 0):.4f}`")
+                st.markdown(f"**Gamma (Γ):** `({d.get('price_plus_S', 0):.4f} - 2*{d.get('base_price', 0):.4f} + {d.get('price_minus_S', 0):.4f}) / {d.get('dS', 0):.2f}² = {greeks.get('Gamma', 0):.4f}`")
+                st.markdown(f"**Vega:** `({d.get('price_plus_sigma', 0):.4f} - {d.get('base_price', 0):.4f}) / ({d.get('dSigma', 0)} * 100) = {greeks.get('Vega', 0):.4f}`")
+                st.markdown(f"**Theta (Θ):** `{d.get('price_minus_T', 0):.4f} - {d.get('base_price', 0):.4f} = {greeks.get('Theta', 0):.5f}`")
+                st.markdown(f"**Rho (ρ):** `({d.get('price_plus_r', 0):.4f} - {d.get('base_price', 0):.4f}) / ({d.get('dR', 0)} * 100) = {greeks.get('Rho', 0):.5f}`")
             else:
                 st.markdown(f"**d1:** `{results.get('d1', 0):.5f}`")
                 st.markdown(f"**d2:** `{results.get('d2', 0):.5f}`")
