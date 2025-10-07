@@ -62,7 +62,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- DATA SIMULATION ---
+# --- DATA SIMULATION & MAPPINGS ---
 @st.cache_data
 def generate_price_history(start_price, vol, days):
     prices = [start_price]
@@ -78,10 +78,27 @@ MOCK_STOCK_DATA = {
     "HDFCBANK.NS": {"price": 1530.90, "history": generate_price_history(1530.90, 0.251, 252)},
 }
 
+COMPANY_NAMES = {
+    "Reliance Industries": "RELIANCE.NS",
+    "Infosys": "INFY.NS",
+    "Tata Consultancy Services": "TCS.NS",
+    "HDFC Bank": "HDFCBANK.NS",
+}
+
 def calculate_historical_volatility(prices):
     if len(prices) < 2: return 0
     log_returns = np.log(np.array(prices[1:]) / np.array(prices[:-1]))
     return np.std(log_returns) * np.sqrt(252)
+
+# --- CALLBACKS ---
+def update_stock_data():
+    """Callback to update stock data when company changes."""
+    ticker = COMPANY_NAMES[st.session_state.company_selector]
+    if ticker in MOCK_STOCK_DATA:
+        data = MOCK_STOCK_DATA[ticker]
+        st.session_state.S0 = data['price']
+        st.session_state.sigma = calculate_historical_volatility(data['history']) * 100
+        st.session_state.ticker = ticker
 
 # --- CORE CALCULATION LOGIC (Identical to previous version) ---
 
@@ -160,6 +177,7 @@ st.markdown("<p>Multi-Model Option Pricing & Greeks Analysis</p>", unsafe_allow_
 # Initialize session state
 if 'ticker' not in st.session_state:
     st.session_state.ticker = "RELIANCE.NS"
+    st.session_state.company_selector = "Reliance Industries"
     st.session_state.S0 = 2950.00
     st.session_state.sigma = 22.5
 
@@ -171,17 +189,15 @@ with left_col:
     with tab1:
         with st.container(border=True):
             st.subheader("📈 Market Parameters")
-            c1, c2 = st.columns([3, 1])
-            with c1: st.session_state.ticker = st.text_input("Stock Ticker", st.session_state.ticker, label_visibility="collapsed").upper()
-            with c2:
-                if st.button("Fetch"):
-                    if st.session_state.ticker in MOCK_STOCK_DATA:
-                        data = MOCK_STOCK_DATA[st.session_state.ticker]
-                        st.session_state.S0 = data['price']
-                        st.session_state.sigma = calculate_historical_volatility(data['history']) * 100
-                        st.toast(f"Data fetched for {st.session_state.ticker}!", icon="✅")
-                    else: st.error("Ticker not found.")
-            S0 = st.number_input("Stock Price (S₀)", value=st.session_state.S0, format="%.2f")
+            
+            st.selectbox(
+                "Company",
+                options=list(COMPANY_NAMES.keys()),
+                key='company_selector',
+                on_change=update_stock_data,
+            )
+
+            S0 = st.number_input("Stock Price (S₀)", value=st.session_state.S0, format="%.2f", key="s0_input")
             sigma_pct = st.number_input("Volatility (σ %)", value=st.session_state.sigma, format="%.2f", key="sigma_input")
             r_pct = st.number_input("Risk-Free Rate (r %)", value=7.0, format="%.1f")
 
